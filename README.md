@@ -30,16 +30,62 @@ Deploy from agent SDKs, like the [Google Gen AI SDK](https://ai.google.dev/gemin
 
 ## Tools
 
+### Available in all modes
+
 - `deploy-file-contents`: Deploys files to Cloud Run by providing their contents directly.
+- `deploy-container-image`: Deploys a container image URL to Cloud Run.
 - `list-services`: Lists Cloud Run services in a given project and region.
 - `get-service`: Gets details for a specific Cloud Run service.
 - `get-service-log`: Gets Logs and Error Messages for a specific Cloud Run service.
 
-- `deploy-local-folder`\*: Deploys a local folder to a Google Cloud Run service.
-- `list-projects`\*: Lists available GCP projects.
-- `create-project`\*: Creates a new GCP project and attach it to the first available billing account. A project ID can be optionally specified.
+### Local mode only
 
-_\* only available when running locally_
+These tools require access to the local filesystem or broader GCP account APIs. They are registered when the server runs via stdio or local HTTP (not on Cloud Run):
+
+- `deploy-local-folder`: Deploys a local folder to a Google Cloud Run service. This is the tool used by the `deploy` prompt and `/deploy` slash commands in IDEs.
+- `list-projects`: Lists available GCP projects.
+- `create-project`: Creates a new GCP project and attach it to the first available billing account. A project ID can be optionally specified.
+
+## Running modes
+
+The server behaves differently depending on where it runs:
+
+| Mode | Transport | Tools | Typical use |
+| :--- | :--- | :--- | :--- |
+| **Local (stdio)** | `npx @google-cloud/cloud-run-mcp` over stdio | All tools | IDEs (Cursor, VS Code), desktop apps (Claude) |
+| **Local (HTTP)** | `node mcp-server.js` with `GCP_STDIO=false` | All tools | OAuth testing, local HTTP clients |
+| **Hosted (Cloud Run)** | Streamable HTTP (`POST /mcp`) or SSE (`GET /sse`) | Remote tools only | Shared remote agent in a GCP project |
+
+When hosted on Cloud Run, the server detects GCP metadata and registers the remote tool set (`registerToolsRemote`). The `deploy-local-folder` tool is intentionally unavailable because the hosted server cannot read your local project folder.
+
+> [!TIP]
+> To deploy **your** local project folder, use a **local** MCP client (stdio via `npx`) or run `gcloud run deploy --source .` directly. The hosted MCP server can deploy file contents or container images, but not arbitrary local paths.
+
+## HTTP endpoints (hosted mode)
+
+When running on Cloud Run (or with `GCP_STDIO=false`), the server exposes MCP protocol endpoints — not a web UI:
+
+| Endpoint | Method | Purpose |
+| :--- | :--- | :--- |
+| `/mcp` | `POST` | Streamable HTTP MCP (recommended) |
+| `/mcp` | `GET`, `DELETE` | Returns `405 Method not allowed` |
+| `/sse` | `GET` | Legacy SSE transport |
+| `/messages` | `POST` | Legacy SSE message channel |
+| `/.well-known/oauth-protected-resource` | `GET` | OAuth metadata (when OAuth is enabled) |
+| `/.well-known/oauth-authorization-server` | `GET` | OAuth metadata (when OAuth is enabled) |
+
+There is no route for `/`. Opening the service URL in a browser shows `Cannot GET /` — this is expected and does not indicate a failed deployment.
+
+To verify a hosted deployment, send an MCP `initialize` request to `/mcp`:
+
+```bash
+curl -X POST https://SERVICE_URL/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":1}'
+```
+
+A successful response includes `"serverInfo":{"name":"cloud-run","version":"1.0.0"}`.
 
 ## Prompts
 
@@ -58,6 +104,7 @@ The Cloud Run MCP server can be configured using the following environment varia
 | `GOOGLE_CLOUD_REGION`    | The default region to use for Cloud Run services.                                                                                                                                        |
 | `DEFAULT_SERVICE_NAME`   | The default service name to use for Cloud Run services.                                                                                                                                  |
 | `SKIP_IAM_CHECK`         | Controls whether to check for IAM permissions for a Cloud Run service. Set to `false` to enable checks. This is `true` by default which is a recommended way to make the service public. |
+| `GCP_STDIO`              | Set to `false` to start the HTTP server instead of stdio transport. Automatically disabled when running on Cloud Run (GCP metadata detected).                                           |
 | `ENABLE_HOST_VALIDATION` | Prevents [DNS Rebinding](https://en.wikipedia.org/wiki/DNS_rebinding) attacks by validating the Host header. This is disabled by default.                                                |
 | `ALLOWED_HOSTS`          | Comma-separated list of allowed Host headers (if host validation is enabled). The default value is `localhost,127.0.0.1,::1`.                                                            |
 
@@ -193,15 +240,23 @@ With this option, you will only be able to deploy code to the same Google Cloud 
    ```bash
    gcloud config set project YOUR_PROJECT_ID
    ```
-4. Deploy the Cloud Run MCP server to Cloud Run:
+4. Deploy the Cloud Run MCP server to Cloud Run.
+
+   **Option A — Google-provided image (recommended for production):**
 
    ```bash
    gcloud run deploy cloud-run-mcp --image us-docker.pkg.dev/cloudrun/container/mcp --no-allow-unauthenticated
    ```
 
-   When prompted, pick a region, for example `europe-west1`.
+   **Option B — Deploy from this repository's source:**
 
-   Note that the MCP server is _not_ publicly accessible, it requires authentication via IAM.
+   ```bash
+   gcloud run deploy cloud-run-mcp --source . --region us-central1 --no-allow-unauthenticated
+   ```
+
+   When prompted, pick a region, for example `us-central1` or `europe-west1`.
+
+   Note that the MCP server should _not_ be publicly accessible without authentication. Use `--no-allow-unauthenticated` and connect via IAM proxy (step 6) or OAuth (see below).
 
 5. [Optional] Add default configurations
 
@@ -217,13 +272,22 @@ With this option, you will only be able to deploy code to the same Google Cloud 
 
    This will create a local proxy on port 3000 that forwards requests to the remote MCP server and injects your identity.
 
-7. Update the MCP configuration file of your MCP client with the following:
+7. Update the MCP configuration file of your MCP client. Use Streamable HTTP (`/mcp`) if your client supports it; otherwise use the legacy SSE endpoint (`/sse`):
+
+   **Streamable HTTP (recommended):**
+
+   ```json
+      "cloud-run": {
+        "url": "http://localhost:3000/mcp"
+      }
+   ```
+
+   **Legacy SSE:**
 
    ```json
       "cloud-run": {
         "url": "http://localhost:3000/sse"
       }
-
    ```
 
    If your MCP client does not support the `url` attribute, you can use [mcp-remote](https://www.npmjs.com/package/mcp-remote):
@@ -231,9 +295,11 @@ With this option, you will only be able to deploy code to the same Google Cloud 
    ```json
       "cloud-run": {
         "command": "npx",
-        "args": ["-y", "mcp-remote", "http://localhost:3000/sse"]
+        "args": ["-y", "mcp-remote", "http://localhost:3000/mcp"]
       }
    ```
+
+   The proxy forwards authenticated requests to the remote service. Do not point MCP clients directly at a public Cloud Run URL without authentication.
 
 ## Using MCP Server with OAuth
 
