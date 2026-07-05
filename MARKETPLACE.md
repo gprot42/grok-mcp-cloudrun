@@ -31,7 +31,7 @@ Add this object to `.grok-plugin/marketplace.json` in
   "source": {
     "source": "url",
     "url": "https://github.com/gprot42/grok-mcp-cloudrun.git",
-    "sha": "REPLACE_WITH_RELEASE_COMMIT_SHA"
+    "sha": "5a698e39b45fb87ba63983b21fefd46498706bfd"
   },
   "homepage": "https://github.com/gprot42/grok-mcp-cloudrun",
   "keywords": ["cloud run mcp", "grok cloud run", "google cloud run grok"],
