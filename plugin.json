@@ -5,7 +5,14 @@
   "author": {
     "name": "grok-mcp-cloudrun contributors"
   },
-  "keywords": ["grok", "cloud-run", "google-cloud-run", "gcp", "google-cloud", "mcp"],
+  "keywords": [
+    "grok",
+    "cloud-run",
+    "google-cloud-run",
+    "gcp",
+    "google-cloud",
+    "mcp"
+  ],
   "license": "Apache-2.0",
   "repository": "https://github.com/gprot42/grok-mcp-cloudrun",
   "homepage": "https://github.com/gprot42/grok-mcp-cloudrun"

@@ -2,11 +2,16 @@
 
 **Grok plugin for deploying and managing Google Cloud Run services.**
 
-Deploy and manage Cloud Run from [Grok](https://github.com/xai-org/grok) using MCP tools, slash commands, and a Cloud Run skill. This repo is a thin wrapper around Google's open-source [`@google-cloud/cloud-run-mcp`](https://github.com/GoogleCloudPlatform/cloud-run-mcp) — it does **not** fork or vendor the upstream server.
+Deploy and manage Cloud Run from [Grok](https://github.com/xai-org/grok) using
+MCP tools, slash commands, and a Cloud Run skill. This repo is a thin wrapper
+around Google's open-source
+[`@google-cloud/cloud-run-mcp`](https://github.com/GoogleCloudPlatform/cloud-run-mcp)
+— it does **not** fork or vendor the upstream server.
 
 **Not affiliated with Google.** See [NOTICE](NOTICE) for upstream attribution.
 
-> See [GROK-CHANGES.md](GROK-CHANGES.md) for a full list of Grok-specific additions and lessons learned from testing.
+> See [GROK-CHANGES.md](GROK-CHANGES.md) for a full list of Grok-specific
+> additions and lessons learned from testing.
 
 ---
 
@@ -28,12 +33,12 @@ Deploy and manage Cloud Run from [Grok](https://github.com/xai-org/grok) using M
 
 ## What you get
 
-| Component | What it does |
-|-----------|--------------|
-| **MCP server** | Deploy folders, list services, fetch logs via `cloud-run__*` tools |
-| **Skill** | `cloud-run` — MCP-first workflow with gcloud fallback |
-| **Slash commands** | `/deploy` and `/logs` |
-| **Hooks** | Warns if no GCP project is set; blocks `create-project` by default |
+| Component          | What it does                                                       |
+| ------------------ | ------------------------------------------------------------------ |
+| **MCP server**     | Deploy folders, list services, fetch logs via `cloud-run__*` tools |
+| **Skill**          | `cloud-run` — MCP-first workflow with gcloud fallback              |
+| **Slash commands** | `/deploy` and `/logs`                                              |
+| **Hooks**          | Warns if no GCP project is set; blocks `create-project` by default |
 
 ---
 
@@ -65,10 +70,10 @@ Node.js LTS is required for `npx` to spawn the MCP server.
 
 Your account needs permission to deploy and read Cloud Run resources:
 
-| Action | Minimum roles |
-|--------|---------------|
-| Deploy | `roles/run.admin` — or `roles/run.developer` + `roles/iam.serviceAccountUser` |
-| Logs | `roles/logging.viewer` + Cloud Run read access |
+| Action        | Minimum roles                                                                    |
+| ------------- | -------------------------------------------------------------------------------- |
+| Deploy        | `roles/run.admin` — or `roles/run.developer` + `roles/iam.serviceAccountUser`    |
+| Logs          | `roles/logging.viewer` + Cloud Run read access                                   |
 | Source upload | `roles/storage.admin`, `roles/artifactregistry.writer` (as needed by your build) |
 
 ### 5. Verify MCP connectivity
@@ -105,7 +110,8 @@ Open Grok and check:
 
 ## Installation
 
-Choose one path. Do **not** enable both with the same server name — pick plugin **or** bare MCP config.
+Choose one path. Do **not** enable both with the same server name — pick plugin
+**or** bare MCP config.
 
 ### Option A: Plugin (recommended)
 
@@ -151,7 +157,8 @@ deploy-local-folder = 600
 
 ## Quick test (deploy + curl)
 
-End-to-end smoke test: clone a sample app, deploy it from Grok, then hit it with `curl`.
+End-to-end smoke test: clone a sample app, deploy it from Grok, then hit it with
+`curl`.
 
 ### Step 1 — Clone the sample
 
@@ -160,7 +167,8 @@ git clone https://github.com/GoogleCloudPlatform/cloud-run-mcp.git /tmp/cloud-ru
 cd /tmp/cloud-run-mcp/example-sources-to-deploy/nodejs
 ```
 
-Upstream also provides `golang`, `java`, and `python` samples in the same directory.
+Upstream also provides `golang`, `java`, and `python` samples in the same
+directory.
 
 ### Step 2 — Deploy from Grok
 
@@ -170,7 +178,9 @@ In a Grok session (with this directory as your working folder):
 /deploy hello-test
 ```
 
-Grok calls `cloud-run__deploy-local-folder` and returns a public HTTPS URL when the deploy finishes. First deploy can take several minutes (Cloud Build + container push).
+Grok calls `cloud-run__deploy-local-folder` and returns a public HTTPS URL when
+the deploy finishes. First deploy can take several minutes (Cloud Build +
+container push).
 
 ### Step 3 — Verify with curl
 
@@ -233,12 +243,12 @@ gcloud run services delete hello-test \
 
 ### Slash commands
 
-| Command | Action |
-|---------|--------|
-| `/deploy` | Deploy cwd; service name = directory basename |
-| `/deploy my-api` | Deploy cwd as `my-api` |
-| `/logs` | Logs for default service name |
-| `/logs my-api` | Logs for `my-api` |
+| Command          | Action                                        |
+| ---------------- | --------------------------------------------- |
+| `/deploy`        | Deploy cwd; service name = directory basename |
+| `/deploy my-api` | Deploy cwd as `my-api`                        |
+| `/logs`          | Logs for default service name                 |
+| `/logs my-api`   | Logs for `my-api`                             |
 
 ### Natural language prompts
 
@@ -251,15 +261,15 @@ gcloud run services delete hello-test \
 
 Grok namespaces tools as `cloud-run__<tool>`:
 
-| Tool | Purpose |
-|------|---------|
-| `cloud-run__deploy-local-folder` | Deploy cwd to Cloud Run |
-| `cloud-run__deploy-file-contents` | Deploy files by content (remote mode) |
-| `cloud-run__list-services` | List services in project/region |
-| `cloud-run__get-service` | Service details and public URL |
-| `cloud-run__get-service-log` | Recent logs and errors |
-| `cloud-run__list-projects` | List GCP projects |
-| `cloud-run__create-project` | Create project (blocked by default hook) |
+| Tool                              | Purpose                                  |
+| --------------------------------- | ---------------------------------------- |
+| `cloud-run__deploy-local-folder`  | Deploy cwd to Cloud Run                  |
+| `cloud-run__deploy-file-contents` | Deploy files by content (remote mode)    |
+| `cloud-run__list-services`        | List services in project/region          |
+| `cloud-run__get-service`          | Service details and public URL           |
+| `cloud-run__get-service-log`      | Recent logs and errors                   |
+| `cloud-run__list-projects`        | List GCP projects                        |
+| `cloud-run__create-project`       | Create project (blocked by default hook) |
 
 Discover tools at runtime with `search_tool`, then call with `use_tool`.
 
@@ -269,24 +279,27 @@ Discover tools at runtime with `search_tool`, then call with `use_tool`.
 
 ### Environment variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GOOGLE_CLOUD_PROJECT` | — | GCP project for all operations |
-| `GOOGLE_CLOUD_REGION` | `us-central1` | Cloud Run region |
-| `DEFAULT_SERVICE_NAME` | cwd basename | Default name for `/deploy` and `/logs` |
-| `SKIP_IAM_CHECK` | `true` (upstream) | When `true`, new services may be publicly accessible |
-| `CONFIRM_CLOUD_RUN_CREATE_PROJECT` | unset | Set to `1` to allow `create-project` (hook blocks it otherwise) |
+| Variable                           | Default           | Description                                                     |
+| ---------------------------------- | ----------------- | --------------------------------------------------------------- |
+| `GOOGLE_CLOUD_PROJECT`             | —                 | GCP project for all operations                                  |
+| `GOOGLE_CLOUD_REGION`              | `us-central1`     | Cloud Run region                                                |
+| `DEFAULT_SERVICE_NAME`             | cwd basename      | Default name for `/deploy` and `/logs`                          |
+| `SKIP_IAM_CHECK`                   | `true` (upstream) | When `true`, new services may be publicly accessible            |
+| `CONFIRM_CLOUD_RUN_CREATE_PROJECT` | unset             | Set to `1` to allow `create-project` (hook blocks it otherwise) |
 
 ### Safety hooks
 
 The plugin ships `hooks/hooks.json`:
 
-- **SessionStart** — warns if neither `GOOGLE_CLOUD_PROJECT` nor a `gcloud` default project is set
-- **PreToolUse** — blocks `cloud-run__create-project` unless `CONFIRM_CLOUD_RUN_CREATE_PROJECT=1`
+- **SessionStart** — warns if neither `GOOGLE_CLOUD_PROJECT` nor a `gcloud`
+  default project is set
+- **PreToolUse** — blocks `cloud-run__create-project` unless
+  `CONFIRM_CLOUD_RUN_CREATE_PROJECT=1`
 
 ### Timeouts
 
-Cold `npx` downloads can exceed the default 30s startup timeout. This repo's config uses:
+Cold `npx` downloads can exceed the default 30s startup timeout. This repo's
+config uses:
 
 - `startup_timeout_sec = 60`
 - `tool_timeouts.deploy-local-folder = 600` (10 min for first deploy)
@@ -295,17 +308,17 @@ Cold `npx` downloads can exceed the default 30s startup timeout. This repo's con
 
 ## Troubleshooting
 
-| Symptom | Fix |
-|---------|-----|
-| `grok mcp doctor cloud-run` fails | `gcloud auth application-default login` |
-| MCP starts but deploy fails with auth error | Re-run ADC login; confirm `GOOGLE_CLOUD_PROJECT` |
-| Cold start / connection timeout | Set `startup_timeout_sec = 60` in config |
-| Deploy hangs or times out | Set `tool_timeouts = { deploy-local-folder = 600 }` |
-| `Permission denied` on deploy | Check IAM roles in [Prerequisites](#4-iam-roles) |
-| Plugin MCP shows **blocked** | Reinstall with `grok plugin install ... --trust` |
-| Plugin installed but tools missing | `grok plugin enable cloud-run` |
-| `curl` returns 403 | Service may not be public; check IAM or set `SKIP_IAM_CHECK=false` and add `allUsers` invoker binding |
-| `curl` connection refused right after deploy | Wait 30–60s for the new revision to become ready, then retry |
+| Symptom                                      | Fix                                                                                                   |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `grok mcp doctor cloud-run` fails            | `gcloud auth application-default login`                                                               |
+| MCP starts but deploy fails with auth error  | Re-run ADC login; confirm `GOOGLE_CLOUD_PROJECT`                                                      |
+| Cold start / connection timeout              | Set `startup_timeout_sec = 60` in config                                                              |
+| Deploy hangs or times out                    | Set `tool_timeouts = { deploy-local-folder = 600 }`                                                   |
+| `Permission denied` on deploy                | Check IAM roles in [Prerequisites](#4-iam-roles)                                                      |
+| Plugin MCP shows **blocked**                 | Reinstall with `grok plugin install ... --trust`                                                      |
+| Plugin installed but tools missing           | `grok plugin enable cloud-run`                                                                        |
+| `curl` returns 403                           | Service may not be public; check IAM or set `SKIP_IAM_CHECK=false` and add `allUsers` invoker binding |
+| `curl` connection refused right after deploy | Wait 30–60s for the new revision to become ready, then retry                                          |
 
 ### Diagnostic commands
 
@@ -341,20 +354,25 @@ grok-mcp-cloudrun/
 
 ## Hosted MCP vs local plugin
 
-This plugin runs the MCP server **locally via stdio** (`npx @google-cloud/cloud-run-mcp`). That is what powers `/deploy`, which calls `cloud-run__deploy-local-folder` on your current working directory.
+This plugin runs the MCP server **locally via stdio**
+(`npx @google-cloud/cloud-run-mcp`). That is what powers `/deploy`, which calls
+`cloud-run__deploy-local-folder` on your current working directory.
 
-If you deploy the upstream MCP server itself to Cloud Run, it behaves differently:
+If you deploy the upstream MCP server itself to Cloud Run, it behaves
+differently:
 
-| | Local plugin (this repo) | Hosted on Cloud Run |
-|--|--------------------------|---------------------|
-| Transport | stdio via `npx` | `POST /mcp` or `GET /sse` |
-| `/deploy` (local folder) | Works | **Not available** |
-| Deploy by file contents | Yes | Yes |
-| Browser at service URL | N/A | `Cannot GET /` (expected — no web UI) |
+|                          | Local plugin (this repo) | Hosted on Cloud Run                   |
+| ------------------------ | ------------------------ | ------------------------------------- |
+| Transport                | stdio via `npx`          | `POST /mcp` or `GET /sse`             |
+| `/deploy` (local folder) | Works                    | **Not available**                     |
+| Deploy by file contents  | Yes                      | Yes                                   |
+| Browser at service URL   | N/A                      | `Cannot GET /` (expected — no web UI) |
 
-To verify a hosted MCP deployment, send an MCP `initialize` request to `/mcp` (see [GROK-CHANGES.md](GROK-CHANGES.md#lessons-from-hosted-mcp-evaluation)).
+To verify a hosted MCP deployment, send an MCP `initialize` request to `/mcp`
+(see [GROK-CHANGES.md](GROK-CHANGES.md#lessons-from-hosted-mcp-evaluation)).
 
-For Grok day-to-day use, install this plugin — do not point Grok at a public Cloud Run URL without IAM authentication.
+For Grok day-to-day use, install this plugin — do not point Grok at a public
+Cloud Run URL without IAM authentication.
 
 ---
 
@@ -362,4 +380,6 @@ For Grok day-to-day use, install this plugin — do not point Grok at a public C
 
 Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-Upstream MCP server: [GoogleCloudPlatform/cloud-run-mcp](https://github.com/GoogleCloudPlatform/cloud-run-mcp) · npm: `@google-cloud/cloud-run-mcp@1.10.0`
+Upstream MCP server:
+[GoogleCloudPlatform/cloud-run-mcp](https://github.com/GoogleCloudPlatform/cloud-run-mcp)
+· npm: `@google-cloud/cloud-run-mcp@1.10.0`

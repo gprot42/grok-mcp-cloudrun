@@ -1,27 +1,34 @@
 # Cloud Run MCP for Grok — Implementation Plan
 
-**Goal:** Make [GoogleCloudPlatform/cloud-run-mcp](https://github.com/GoogleCloudPlatform/cloud-run-mcp) work in Grok with minimal friction — first as a configured MCP server, then optionally as a Grok plugin with skill and slash commands.
+**Goal:** Make
+[GoogleCloudPlatform/cloud-run-mcp](https://github.com/GoogleCloudPlatform/cloud-run-mcp)
+work in Grok with minimal friction — first as a configured MCP server, then
+optionally as a Grok plugin with skill and slash commands.
 
 **Upstream:** `@google-cloud/cloud-run-mcp` (Apache 2.0)  
-**Grok docs:** [MCP servers](https://github.com/xai-org/grok/blob/main/docs/user-guide/07-mcp-servers.md) · [Plugins](https://github.com/xai-org/grok/blob/main/docs/user-guide/09-plugins.md)
+**Grok docs:**
+[MCP servers](https://github.com/xai-org/grok/blob/main/docs/user-guide/07-mcp-servers.md)
+·
+[Plugins](https://github.com/xai-org/grok/blob/main/docs/user-guide/09-plugins.md)
 
 ---
 
 ## 1. Scope
 
-| In scope | Out of scope (v1) |
-|----------|-------------------|
-| Local stdio MCP via `npx @google-cloud/cloud-run-mcp` | Forking or rewriting the upstream MCP server |
-| Grok `config.toml` / `grok mcp add` setup | Hosting the MCP server on Cloud Run (remote mode) |
-| Optional Grok plugin wrapper | OAuth-mode MCP (Gemini-specific flow) |
-| Copy/adapt `skills/cloud-run/SKILL.md` | Implying Google official endorsement |
-| `/deploy` and `/logs` Grok slash commands | Full GCP console parity |
+| In scope                                              | Out of scope (v1)                                 |
+| ----------------------------------------------------- | ------------------------------------------------- |
+| Local stdio MCP via `npx @google-cloud/cloud-run-mcp` | Forking or rewriting the upstream MCP server      |
+| Grok `config.toml` / `grok mcp add` setup             | Hosting the MCP server on Cloud Run (remote mode) |
+| Optional Grok plugin wrapper                          | OAuth-mode MCP (Gemini-specific flow)             |
+| Copy/adapt `skills/cloud-run/SKILL.md`                | Implying Google official endorsement              |
+| `/deploy` and `/logs` Grok slash commands             | Full GCP console parity                           |
 
 ---
 
 ## 2. License & compliance
 
-The upstream repo is **Apache License 2.0**. This allows use, modification, and redistribution.
+The upstream repo is **Apache License 2.0**. This allows use, modification, and
+redistribution.
 
 ### Allowed without extra paperwork
 
@@ -35,7 +42,9 @@ The upstream repo is **Apache License 2.0**. This allows use, modification, and 
 3. Mark modified files if we edit upstream source or skill text
 4. Do **not** use Google trademarks to imply official partnership
 
-**Separate concern:** Using the MCP to deploy invokes **Google Cloud services** (billing, IAM, GCP Terms). That is cloud usage, not a license blocker on the software.
+**Separate concern:** Using the MCP to deploy invokes **Google Cloud services**
+(billing, IAM, GCP Terms). That is cloud usage, not a license blocker on the
+software.
 
 ---
 
@@ -62,13 +71,14 @@ The upstream project is **two layers**, not one:
 └─────────────────────────────────────────────────────────┘
 ```
 
-| Component | Type | Owner |
-|-----------|------|-------|
-| `@google-cloud/cloud-run-mcp` | **MCP server** | Google (upstream) |
-| `skills/cloud-run/SKILL.md` | **Skill** | Google (upstream, optional copy) |
-| Grok plugin directory | **Plugin** | Us (thin wrapper) |
+| Component                     | Type           | Owner                            |
+| ----------------------------- | -------------- | -------------------------------- |
+| `@google-cloud/cloud-run-mcp` | **MCP server** | Google (upstream)                |
+| `skills/cloud-run/SKILL.md`   | **Skill**      | Google (upstream, optional copy) |
+| Grok plugin directory         | **Plugin**     | Us (thin wrapper)                |
 
-**Rule:** The MCP server does the work. The skill teaches *when and how*. The plugin bundles both for one-click install.
+**Rule:** The MCP server does the work. The skill teaches _when and how_. The
+plugin bundles both for one-click install.
 
 ---
 
@@ -116,7 +126,8 @@ grok mcp doctor cloud-run
 In a Grok session (`/mcps`):
 
 - Server shows as enabled
-- Tools appear: `deploy-local-folder`, `list-services`, `get-service`, `get-service-log`, `list-projects`, …
+- Tools appear: `deploy-local-folder`, `list-services`, `get-service`,
+  `get-service-log`, `list-projects`, …
 
 **Manual test prompts:**
 
@@ -147,7 +158,8 @@ enabled = true
 
 Optional project-scoped override in `.grok/config.toml` (per-repo service name).
 
-**Exit criteria:** Survives Grok restart; `/mcps` shows server without re-adding.
+**Exit criteria:** Survives Grok restart; `/mcps` shows server without
+re-adding.
 
 ---
 
@@ -203,9 +215,12 @@ Mirror Gemini's `/deploy` behavior:
 
 #### Skill adaptation
 
-Copy [upstream SKILL.md](https://github.com/GoogleCloudPlatform/cloud-run-mcp/blob/main/skills/cloud-run/SKILL.md) and add Grok-specific notes:
+Copy
+[upstream SKILL.md](https://github.com/GoogleCloudPlatform/cloud-run-mcp/blob/main/skills/cloud-run/SKILL.md)
+and add Grok-specific notes:
 
-- Trigger phrases: "deploy to Cloud Run", "Cloud Run logs", "list Cloud Run services"
+- Trigger phrases: "deploy to Cloud Run", "Cloud Run logs", "list Cloud Run
+  services"
 - Prerequisite checks: `gcloud auth`, `GOOGLE_CLOUD_PROJECT` set
 - Prefer MCP tools for deploy/logs; fall back to `gcloud run` per skill tables
 
@@ -218,19 +233,20 @@ Copy [upstream SKILL.md](https://github.com/GoogleCloudPlatform/cloud-run-mcp/bl
 
 Or copy to `~/.grok/plugins/cloud-run/`.
 
-**Exit criteria:** Plugin loads in `/plugins`; MCP tools and skills both visible.
+**Exit criteria:** Plugin loads in `/plugins`; MCP tools and skills both
+visible.
 
 ---
 
 ### Phase 3 — Hardening (2–3 hours)
 
-| Task | Detail |
-|------|--------|
-| **Error messages** | Document common failures: ADC not set, wrong project, IAM denied |
-| **Safety hook** | Optional `PreToolUse` hook: confirm before `create-project` or production deploy |
-| **Env validation** | `SessionStart` hook: warn if `GOOGLE_CLOUD_PROJECT` unset |
-| **Timeouts** | `startup_timeout_sec = 60` for cold `npx` downloads |
-| **Docs** | README: auth steps, example prompts, license attribution |
+| Task               | Detail                                                                           |
+| ------------------ | -------------------------------------------------------------------------------- |
+| **Error messages** | Document common failures: ADC not set, wrong project, IAM denied                 |
+| **Safety hook**    | Optional `PreToolUse` hook: confirm before `create-project` or production deploy |
+| **Env validation** | `SessionStart` hook: warn if `GOOGLE_CLOUD_PROJECT` unset                        |
+| **Timeouts**       | `startup_timeout_sec = 60` for cold `npx` downloads                              |
+| **Docs**           | README: auth steps, example prompts, license attribution                         |
 
 **Optional hook** (`hooks/hooks.json`):
 
@@ -260,7 +276,8 @@ Only if we want public distribution:
 1. Push plugin repo to GitHub
 2. Submit to xAI marketplace (or host as git-based plugin source)
 3. README must include upstream attribution and Apache 2.0 license
-4. Avoid "Official Google" naming — use "Cloud Run deploy for Grok (based on Google's MCP server)"
+4. Avoid "Official Google" naming — use "Cloud Run deploy for Grok (based on
+   Google's MCP server)"
 
 **Exit criteria:** Installable via `/marketplace` or `/plugins add owner/repo`.
 
@@ -270,15 +287,15 @@ Only if we want public distribution:
 
 From upstream README — what Grok gains:
 
-| Tool | Local only? | Purpose |
-|------|-------------|---------|
-| `deploy-local-folder` | Yes | Deploy cwd to Cloud Run |
-| `deploy-file-contents` | No | Deploy files by content |
-| `list-services` | No | List services in project/region |
-| `get-service` | No | Service details + URL |
-| `get-service-log` | No | Logs and errors |
-| `list-projects` | Yes | List GCP projects |
-| `create-project` | Yes | Create project + attach billing |
+| Tool                   | Local only? | Purpose                         |
+| ---------------------- | ----------- | ------------------------------- |
+| `deploy-local-folder`  | Yes         | Deploy cwd to Cloud Run         |
+| `deploy-file-contents` | No          | Deploy files by content         |
+| `list-services`        | No          | List services in project/region |
+| `get-service`          | No          | Service details + URL           |
+| `get-service-log`      | No          | Logs and errors                 |
+| `list-projects`        | Yes         | List GCP projects               |
+| `create-project`       | Yes         | Create project + attach billing |
 
 **Prompts** (MCP-level shortcuts, not Grok slash commands): `deploy`, `logs`.
 
@@ -286,36 +303,38 @@ From upstream README — what Grok gains:
 
 ## 7. Testing checklist
 
-| # | Test | Expected |
-|---|------|----------|
-| 1 | `grok mcp doctor cloud-run` | Healthy connection |
-| 2 | List services (existing project) | Returns service list or empty array |
-| 3 | Deploy sample app | Returns public HTTPS URL |
-| 4 | `get-service-log` after deploy | Recent log lines |
-| 5 | Grok restart | MCP reconnects without manual steps |
-| 6 | Plugin disable/enable | Tools disappear/reappear in `/mcps` |
-| 7 | Missing ADC | Clear auth error, not silent hang |
+| #   | Test                             | Expected                            |
+| --- | -------------------------------- | ----------------------------------- |
+| 1   | `grok mcp doctor cloud-run`      | Healthy connection                  |
+| 2   | List services (existing project) | Returns service list or empty array |
+| 3   | Deploy sample app                | Returns public HTTPS URL            |
+| 4   | `get-service-log` after deploy   | Recent log lines                    |
+| 5   | Grok restart                     | MCP reconnects without manual steps |
+| 6   | Plugin disable/enable            | Tools disappear/reappear in `/mcps` |
+| 7   | Missing ADC                      | Clear auth error, not silent hang   |
 
-**Sample app for deploy tests:** use upstream `example-sources-to-deploy/` from the Google repo.
+**Sample app for deploy tests:** use upstream `example-sources-to-deploy/` from
+the Google repo.
 
 ---
 
 ## 8. Risks & mitigations
 
-| Risk | Mitigation |
-|------|------------|
-| Cold `npx` startup timeout | `startup_timeout_sec = 60`; pin package version after first success |
-| Accidental prod deploy | `PreToolUse` confirmation hook; default to non-prod project |
-| `create-project` creates billable resources | Document danger; optional hook to block tool |
-| Credential expiry | README: re-run `gcloud auth application-default login` |
-| Upstream breaking changes | Pin `@google-cloud/cloud-run-mcp@X.Y.Z` in plugin args |
-| License violation on publish | Ship LICENSE + attribution; legal review if commercial |
+| Risk                                        | Mitigation                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------- |
+| Cold `npx` startup timeout                  | `startup_timeout_sec = 60`; pin package version after first success |
+| Accidental prod deploy                      | `PreToolUse` confirmation hook; default to non-prod project         |
+| `create-project` creates billable resources | Document danger; optional hook to block tool                        |
+| Credential expiry                           | README: re-run `gcloud auth application-default login`              |
+| Upstream breaking changes                   | Pin `@google-cloud/cloud-run-mcp@X.Y.Z` in plugin args              |
+| License violation on publish                | Ship LICENSE + attribution; legal review if commercial              |
 
 ---
 
 ## 9. Remote MCP mode (deferred)
 
-Upstream supports hosting the MCP server on Cloud Run with IAM auth + local proxy:
+Upstream supports hosting the MCP server on Cloud Run with IAM auth + local
+proxy:
 
 ```bash
 gcloud run services proxy cloud-run-mcp --port=3000 --region=REGION
@@ -328,19 +347,20 @@ Grok config would use:
 url = "http://localhost:3000/sse"
 ```
 
-Defer until local stdio path is stable. Remote mode adds proxy lifecycle management and OAuth edge cases.
+Defer until local stdio path is stable. Remote mode adds proxy lifecycle
+management and OAuth edge cases.
 
 ---
 
 ## 10. Effort summary
 
-| Phase | Effort | Deliverable |
-|-------|--------|-------------|
-| 0 — Smoke test | 30 min | Confirmed Grok + upstream MCP works |
-| 1 — User config | 1 hr | `config.toml` entry |
-| 2 — Plugin scaffold | 2–4 hr | Installable plugin with skill + commands |
-| 3 — Hardening | 2–3 hr | Hooks, docs, error handling |
-| 4 — Marketplace | 1–2 days | Public plugin (optional) |
+| Phase               | Effort   | Deliverable                              |
+| ------------------- | -------- | ---------------------------------------- |
+| 0 — Smoke test      | 30 min   | Confirmed Grok + upstream MCP works      |
+| 1 — User config     | 1 hr     | `config.toml` entry                      |
+| 2 — Plugin scaffold | 2–4 hr   | Installable plugin with skill + commands |
+| 3 — Hardening       | 2–3 hr   | Hooks, docs, error handling              |
+| 4 — Marketplace     | 1–2 days | Public plugin (optional)                 |
 
 **Minimum viable:** Phase 0 + Phase 1 (under 2 hours).  
 **Recommended:** Through Phase 3 (~1 day).  
@@ -350,13 +370,13 @@ Defer until local stdio path is stable. Remote mode adds proxy lifecycle managem
 
 ## 11. Decision log
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Fork upstream? | No | Apache 2.0 allows wrapping; `npx` keeps us current |
-| MCP vs skill only? | Both | MCP = tools; skill = workflow discipline |
-| stdio vs remote? | stdio first | Simpler auth (ADC), matches Gemini local setup |
-| Plugin vs config-only? | Plugin for sharing; config for personal use | Plugin adds slash commands + marketplace path |
-| Pin version? | Yes after smoke test | Avoid surprise breakage from `@latest` |
+| Decision               | Choice                                      | Rationale                                          |
+| ---------------------- | ------------------------------------------- | -------------------------------------------------- |
+| Fork upstream?         | No                                          | Apache 2.0 allows wrapping; `npx` keeps us current |
+| MCP vs skill only?     | Both                                        | MCP = tools; skill = workflow discipline           |
+| stdio vs remote?       | stdio first                                 | Simpler auth (ADC), matches Gemini local setup     |
+| Plugin vs config-only? | Plugin for sharing; config for personal use | Plugin adds slash commands + marketplace path      |
+| Pin version?           | Yes after smoke test                        | Avoid surprise breakage from `@latest`             |
 
 ---
 
@@ -377,4 +397,5 @@ Defer until local stdio path is stable. Remote mode adds proxy lifecycle managem
 - npm package: `@google-cloud/cloud-run-mcp`
 - License: Apache 2.0 (see upstream `LICENSE`)
 - Gemini extension config: `gemini-extension.json` in upstream repo
-- Grok plugin examples: `~/.grok/installed-plugins/chrome-devtools-mcp-*`, `sentry-for-ai-*`
+- Grok plugin examples: `~/.grok/installed-plugins/chrome-devtools-mcp-*`,
+  `sentry-for-ai-*`
