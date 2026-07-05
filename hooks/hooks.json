@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PROJECT=$(gcloud config get-value project 2>/dev/null); if [ -z \"$GOOGLE_CLOUD_PROJECT\" ] && [ -z \"$PROJECT\" ]; then echo 'WARN: GOOGLE_CLOUD_PROJECT not set and no gcloud default project — Cloud Run MCP may fail. Run: export GOOGLE_CLOUD_PROJECT=your-project-id'; fi"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "cloud-run__create-project",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'BLOCKED: create-project creates billable GCP resources. Set CONFIRM_CLOUD_RUN_CREATE_PROJECT=1 to allow.' && test -n \"$CONFIRM_CLOUD_RUN_CREATE_PROJECT\""
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,366 +1,365 @@
-# Cloud Run MCP server and Gemini CLI extension
+# grok-mcp-cloudrun
 
-Enable MCP-compatible AI agents to deploy apps to Cloud Run.
+**Grok plugin for deploying and managing Google Cloud Run services.**
 
-```json
-"mcpServers":{
-  "cloud-run": {
-    "command": "npx",
-    "args": ["-y", "@google-cloud/cloud-run-mcp"]
-  }
-}
-```
+Deploy and manage Cloud Run from [Grok](https://github.com/xai-org/grok) using MCP tools, slash commands, and a Cloud Run skill. This repo is a thin wrapper around Google's open-source [`@google-cloud/cloud-run-mcp`](https://github.com/GoogleCloudPlatform/cloud-run-mcp) — it does **not** fork or vendor the upstream server.
 
-Deploy from Gemini CLI and other AI-powered CLI agents:
+**Not affiliated with Google.** See [NOTICE](NOTICE) for upstream attribution.
 
-<img  src="https://raw.githubusercontent.com/GoogleCloudPlatform/cloud-run-mcp/refs/heads/main/.github/images/deploycli.gif" width="800">
+> See [GROK-CHANGES.md](GROK-CHANGES.md) for a full list of Grok-specific additions and lessons learned from testing.
 
-Deploy from AI-powered IDEs:
+---
 
-<img src="https://raw.githubusercontent.com/GoogleCloudPlatform/cloud-run-mcp/refs/heads/main/.github/images/deploy_from_ide.gif" width="800">
+## Table of contents
 
-Deploy from AI assistant apps:
+1. [What you get](#what-you-get)
+2. [Prerequisites](#prerequisites)
+3. [Quick start](#quick-start)
+4. [Installation](#installation)
+5. [Quick test (deploy + curl)](#quick-test-deploy--curl)
+6. [Daily usage](#daily-usage)
+7. [Configuration reference](#configuration-reference)
+8. [Troubleshooting](#troubleshooting)
+9. [Project layout](#project-layout)
+10. [Hosted MCP vs local plugin](#hosted-mcp-vs-local-plugin)
+11. [License](#license)
 
-<img src="https://raw.githubusercontent.com/GoogleCloudPlatform/cloud-run-mcp/refs/heads/main/.github/images/deploy_from_apps.gif" width="800">
+---
 
-Deploy from agent SDKs, like the [Google Gen AI SDK](https://ai.google.dev/gemini-api/docs/function-calling?example=meeting#use_model_context_protocol_mcp) or [Agent Development Kit](https://google.github.io/adk-docs/tools/mcp-tools/).
+## What you get
 
-> [!NOTE]  
-> This is the repository of an MCP server to deploy code to Cloud Run, to learn how to **host** MCP servers on Cloud Run, [visit the Cloud Run documentation](https://cloud.google.com/run/docs/host-mcp-servers).
+| Component | What it does |
+|-----------|--------------|
+| **MCP server** | Deploy folders, list services, fetch logs via `cloud-run__*` tools |
+| **Skill** | `cloud-run` — MCP-first workflow with gcloud fallback |
+| **Slash commands** | `/deploy` and `/logs` |
+| **Hooks** | Warns if no GCP project is set; blocks `create-project` by default |
 
-## Tools
+---
 
-### Available in all modes
+## Prerequisites
 
-- `deploy-file-contents`: Deploys files to Cloud Run by providing their contents directly.
-- `deploy-container-image`: Deploys a container image URL to Cloud Run.
-- `list-services`: Lists Cloud Run services in a given project and region.
-- `get-service`: Gets details for a specific Cloud Run service.
-- `get-service-log`: Gets Logs and Error Messages for a specific Cloud Run service.
+Install and authenticate before anything else.
 
-### Local mode only
-
-These tools require access to the local filesystem or broader GCP account APIs. They are registered when the server runs via stdio or local HTTP (not on Cloud Run):
-
-- `deploy-local-folder`: Deploys a local folder to a Google Cloud Run service. This is the tool used by the `deploy` prompt and `/deploy` slash commands in IDEs.
-- `list-projects`: Lists available GCP projects.
-- `create-project`: Creates a new GCP project and attach it to the first available billing account. A project ID can be optionally specified.
-
-## Running modes
-
-The server behaves differently depending on where it runs:
-
-| Mode | Transport | Tools | Typical use |
-| :--- | :--- | :--- | :--- |
-| **Local (stdio)** | `npx @google-cloud/cloud-run-mcp` over stdio | All tools | IDEs (Cursor, VS Code), desktop apps (Claude) |
-| **Local (HTTP)** | `node mcp-server.js` with `GCP_STDIO=false` | All tools | OAuth testing, local HTTP clients |
-| **Hosted (Cloud Run)** | Streamable HTTP (`POST /mcp`) or SSE (`GET /sse`) | Remote tools only | Shared remote agent in a GCP project |
-
-When hosted on Cloud Run, the server detects GCP metadata and registers the remote tool set (`registerToolsRemote`). The `deploy-local-folder` tool is intentionally unavailable because the hosted server cannot read your local project folder.
-
-> [!TIP]
-> To deploy **your** local project folder, use a **local** MCP client (stdio via `npx`) or run `gcloud run deploy --source .` directly. The hosted MCP server can deploy file contents or container images, but not arbitrary local paths.
-
-## HTTP endpoints (hosted mode)
-
-When running on Cloud Run (or with `GCP_STDIO=false`), the server exposes MCP protocol endpoints — not a web UI:
-
-| Endpoint | Method | Purpose |
-| :--- | :--- | :--- |
-| `/mcp` | `POST` | Streamable HTTP MCP (recommended) |
-| `/mcp` | `GET`, `DELETE` | Returns `405 Method not allowed` |
-| `/sse` | `GET` | Legacy SSE transport |
-| `/messages` | `POST` | Legacy SSE message channel |
-| `/.well-known/oauth-protected-resource` | `GET` | OAuth metadata (when OAuth is enabled) |
-| `/.well-known/oauth-authorization-server` | `GET` | OAuth metadata (when OAuth is enabled) |
-
-There is no route for `/`. Opening the service URL in a browser shows `Cannot GET /` — this is expected and does not indicate a failed deployment.
-
-To verify a hosted deployment, send an MCP `initialize` request to `/mcp`:
+### 1. Google Cloud SDK
 
 ```bash
-curl -X POST https://SERVICE_URL/mcp \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":1}'
+gcloud auth login
+gcloud auth application-default login
+gcloud config set project YOUR_PROJECT_ID
 ```
 
-A successful response includes `"serverInfo":{"name":"cloud-run","version":"1.0.0"}`.
-
-## Prompts
-
-Prompts are natural language commands that can be used to perform common tasks. They are shortcuts for executing tool calls with pre-filled arguments.
-
-- `deploy`: Deploys the current working directory to Cloud Run. If a service name is not provided, it will use the `DEFAULT_SERVICE_NAME` environment variable, or the name of the current working directory.
-- `logs`: Gets the logs for a Cloud Run service. If a service name is not provided, it will use the `DEFAULT_SERVICE_NAME` environment variable, or the name of the current working directory.
-
-## Environment Variables
-
-The Cloud Run MCP server can be configured using the following environment variables:
-
-| Variable                 | Description                                                                                                                                                                              |
-| :----------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GOOGLE_CLOUD_PROJECT`   | The default project ID to use for Cloud Run services.                                                                                                                                    |
-| `GOOGLE_CLOUD_REGION`    | The default region to use for Cloud Run services.                                                                                                                                        |
-| `DEFAULT_SERVICE_NAME`   | The default service name to use for Cloud Run services.                                                                                                                                  |
-| `SKIP_IAM_CHECK`         | Controls whether to check for IAM permissions for a Cloud Run service. Set to `false` to enable checks. This is `true` by default which is a recommended way to make the service public. |
-| `GCP_STDIO`              | Set to `false` to start the HTTP server instead of stdio transport. Automatically disabled when running on Cloud Run (GCP metadata detected).                                           |
-| `ENABLE_HOST_VALIDATION` | Prevents [DNS Rebinding](https://en.wikipedia.org/wiki/DNS_rebinding) attacks by validating the Host header. This is disabled by default.                                                |
-| `ALLOWED_HOSTS`          | Comma-separated list of allowed Host headers (if host validation is enabled). The default value is `localhost,127.0.0.1,::1`.                                                            |
-
-## Use as a Gemini CLI extension
-
-To install this as a [Gemini CLI](https://github.com/google-gemini/gemini-cli) extension, run the following command:
-
-2. Install the extension:
-
-   ```bash
-   gemini extensions install https://github.com/GoogleCloudPlatform/cloud-run-mcp
-   ```
-
-3. Log in to your Google Cloud account using the command:
-
-   ```bash
-   gcloud auth login
-   ```
-
-4. Set up application credentials using the command:
-   ```bash
-   gcloud auth application-default login
-   ```
-
-## Use in MCP Clients
-
-### Learn how to configure your MCP client
-
-Most MCP clients require a configuration file to be created or modified to add the MCP server.
-
-The configuration file syntax can be different across clients. Please refer to the following links for the latest expected syntax:
-
-- [**Antigravity**](https://antigravity.google/docs/mcp)
-- [**Windsurf**](https://docs.windsurf.com/windsurf/mcp)
-- [**VSCode**](https://code.visualstudio.com/docs/copilot/chat/mcp-servers)
-- [**Claude Desktop**](https://modelcontextprotocol.io/quickstart/user)
-- [**Cursor**](https://docs.cursor.com/context/model-context-protocol)
-
-Once you have identified how to configure your MCP client, select one of these two options to set up the MCP server.
-We recommend setting up as a local MCP server using Node.js.
-
-### Set up as local MCP server
-
-Run the Cloud Run MCP server on your local machine using local Google Cloud credentials. This is best if you are using an AI-assisted IDE (e.g. Cursor) or a desktop AI application (e.g. Claude).
-
-1. Install the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) and authenticate with your Google account.
-
-2. Log in to your Google Cloud account using the command:
-
-   ```bash
-   gcloud auth login
-   ```
-
-3. Set up application credentials using the command:
-   ```bash
-   gcloud auth application-default login
-   ```
-
-Then configure the MCP server using either Node.js or Docker:
-
-#### Using Node.js
-
-0. Install [Node.js](https://nodejs.org/en/download/) (LTS version recommended).
-
-1. Update the MCP configuration file of your MCP client with the following:
-
-   ```json
-      "cloud-run": {
-        "command": "npx",
-        "args": ["-y", "@google-cloud/cloud-run-mcp"]
-      }
-   ```
-
-2. [Optional] Add default configurations
-
-   ```json
-      "cloud-run": {
-         "command": "npx",
-         "args": ["-y", "@google-cloud/cloud-run-mcp"],
-         "env": {
-               "GOOGLE_CLOUD_PROJECT": "PROJECT_NAME",
-               "GOOGLE_CLOUD_REGION": "PROJECT_REGION",
-               "DEFAULT_SERVICE_NAME": "SERVICE_NAME"
-         }
-      }
-   ```
-
-#### Using Docker
-
-See Docker's [MCP catalog](https://hub.docker.com/mcp/server/cloud-run-mcp/overview), or use these manual instructions:
-
-0. Install [Docker](https://www.docker.com/get-started/)
-
-1. Update the MCP configuration file of your MCP client with the following:
-
-   ```json
-      "cloud-run": {
-        "command": "docker",
-        "args": [
-          "run",
-          "-i",
-          "--rm",
-          "-e",
-          "GOOGLE_APPLICATION_CREDENTIALS",
-          "-v",
-          "/local-directory:/local-directory",
-          "mcp/cloud-run-mcp:latest"
-        ],
-        "env": {
-          "GOOGLE_APPLICATION_CREDENTIALS": "/Users/slim/.config/gcloud/application_default-credentials.json",
-          "DEFAULT_SERVICE_NAME": "SERVICE_NAME"
-        }
-      }
-   ```
-
-### Set up as remote MCP server
-
-> [!WARNING]  
-> Do not use the remote MCP server without authentication. In the following instructions, we will use IAM authentication to secure the connection to the MCP server from your local machine. This is important to prevent unauthorized access to your Google Cloud resources.
-
-Run the Cloud Run MCP server itself on Cloud Run with connection from your local machine authenticated via IAM.
-With this option, you will only be able to deploy code to the same Google Cloud project as where the MCP server is running.
-
-1. Install the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) and authenticate with your Google account.
-
-2. Log in to your Google Cloud account using the command:
-
-   ```bash
-   gcloud auth login
-   ```
-
-3. Set your Google Cloud project ID using the command:
-   ```bash
-   gcloud config set project YOUR_PROJECT_ID
-   ```
-4. Deploy the Cloud Run MCP server to Cloud Run.
-
-   **Option A — Google-provided image (recommended for production):**
-
-   ```bash
-   gcloud run deploy cloud-run-mcp --image us-docker.pkg.dev/cloudrun/container/mcp --no-allow-unauthenticated
-   ```
-
-   **Option B — Deploy from this repository's source:**
-
-   ```bash
-   gcloud run deploy cloud-run-mcp --source . --region us-central1 --no-allow-unauthenticated
-   ```
-
-   When prompted, pick a region, for example `us-central1` or `europe-west1`.
-
-   Note that the MCP server should _not_ be publicly accessible without authentication. Use `--no-allow-unauthenticated` and connect via IAM proxy (step 6) or OAuth (see below).
-
-5. [Optional] Add default configurations
-
-   ```bash
-   gcloud run services update cloud-run-mcp --region=REGION --update-env-vars GOOGLE_CLOUD_PROJECT=PROJECT_NAME,GOOGLE_CLOUD_REGION=PROJECT_REGION,DEFAULT_SERVICE_NAME=SERVICE_NAME,SKIP_IAM_CHECK=false
-   ```
-
-6. Run a Cloud Run proxy on your local machine to connect securely using your identity to the remote MCP server running on Cloud Run:
-
-   ```bash
-   gcloud run services proxy cloud-run-mcp --port=3000 --region=REGION --project=PROJECT_ID
-   ```
-
-   This will create a local proxy on port 3000 that forwards requests to the remote MCP server and injects your identity.
-
-7. Update the MCP configuration file of your MCP client. Use Streamable HTTP (`/mcp`) if your client supports it; otherwise use the legacy SSE endpoint (`/sse`):
-
-   **Streamable HTTP (recommended):**
-
-   ```json
-      "cloud-run": {
-        "url": "http://localhost:3000/mcp"
-      }
-   ```
-
-   **Legacy SSE:**
-
-   ```json
-      "cloud-run": {
-        "url": "http://localhost:3000/sse"
-      }
-   ```
-
-   If your MCP client does not support the `url` attribute, you can use [mcp-remote](https://www.npmjs.com/package/mcp-remote):
-
-   ```json
-      "cloud-run": {
-        "command": "npx",
-        "args": ["-y", "mcp-remote", "http://localhost:3000/mcp"]
-      }
-   ```
-
-   The proxy forwards authenticated requests to the remote service. Do not point MCP clients directly at a public Cloud Run URL without authentication.
-
-## Using MCP Server with OAuth
-
-Cloud Run MCP server supports OAuth as an authentication mechanism. In order to use OAuth, create the OAuth client, and configure a `.env` file with the appropriate values pertaining to your OAuth client. A `.env.example` is provided for reference.
-
-The Cloud Run MCP server works seamlessly with Google Cloud SDK OAuth client. In order to leverage the Google Cloud SDK OAuth client, you can use the `.env.gcloud-sdk-oauth` file as your `.env` file as follows:
+### 2. Environment variables
 
 ```bash
-cp .env.gcloud-sdk-oauth .env
-node mcp-server.js
+export GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID
+export GOOGLE_CLOUD_REGION=us-central1          # optional, defaults to us-central1
+export DEFAULT_SERVICE_NAME=                    # optional, defaults to cwd basename
 ```
 
-### Configure MCP Server on Gemini CLI to use OAuth
+### 3. Node.js
 
-When the Cloud Run MCP server is started in the OAuth mode, the MCP client should also be configured to use OAuth. You can setup the MCP server in OAuth mode in the Gemini CLI by using the following JSON in the `~/.gemini/settings.json` file:
+Node.js LTS is required for `npx` to spawn the MCP server.
 
-```json
-{
-  "mcpServers": {
-    "cloud-run": {
-      "httpUrl": "http://localhost:3000/mcp",
-      "oauth": {
-        "enabled": true,
-        "clientId": "<OAUTH_CLIENT_ID>",
-        "clientSecret": "<OAUTH_CLIENT_SECRET>"
-      }
-    }
-  }
-}
-```
+### 4. IAM roles
 
-Post the configuration changes as shown above, start the Gemini CLI. You should authenticate the Cloud Run MCP server using the following prompt in the Gemini CLI:
+Your account needs permission to deploy and read Cloud Run resources:
 
-```
-/mcp auth cloud-run
-```
+| Action | Minimum roles |
+|--------|---------------|
+| Deploy | `roles/run.admin` — or `roles/run.developer` + `roles/iam.serviceAccountUser` |
+| Logs | `roles/logging.viewer` + Cloud Run read access |
+| Source upload | `roles/storage.admin`, `roles/artifactregistry.writer` (as needed by your build) |
 
-This will take you to the authentication page on your browser, wherein you need to sign in using the appropriate gmail id, and accept the terms and conditions. Once the authentication is succcessful, you can come back to the Gemini CLI, and the Cloud Run MCP server will be ready to use.
-
-The Google Cloud Platform Terms of Service (available at https://cloud.google.com/terms/) and the Data Processing and Security Terms (available at https://cloud.google.com/terms/data-processing-terms) do not apply to any component of the Cloud Run MCP Server software.
-
-# Cloud Run Skills
-
-We introduce Cloud Run skills to enable AI agents to perform actions on Cloud Run. You can use these skills with Gemini CLI and other agentic AI tools. The skills are available at [Cloud Run Skills](https://github.com/GoogleCloudPlatform/cloud-run-mcp/blob/main/skills/cloud-run/SKILL.md).
-
-The Cloud Run skills are based on top of gcloud cli for Cloud Run empowering agents to perform all the actions on the Cloud Run using gcloud, as can be performed by the GCP user using gcloud cli.
-
-In order to use Cloud Run skills:
-
-1. Ensure you have the `gcloud` CLI installed and authenticated with `gcloud auth login` and `gcloud auth application-default login`.
-2. Set your project with `gcloud config set project [PROJECT_ID]`.
-3. Enable the skills on your agentic AI tool. For example, you can enable the skills for Gemini CLI using the following command on your terminal:
+### 5. Verify MCP connectivity
 
 ```bash
-gemini skills install https://github.com/GoogleCloudPlatform/cloud-run-mcp.git --path skills/cloud-run
+grok mcp doctor cloud-run
 ```
 
-4. Once the skills are enabled, you can use them to perform actions on Cloud Run. Here are some of the prompts for you to get started:
+Expected output: `Found 1 healthy, 0 failing` with 8 tools discovered.
 
-- List the Cloud Run services in the project test-gcp-project in the region us-west1.
+---
 
-- Deploy the folder /home/username/workspace/hello-world as Cloud Run service hello-world to the project test-gcp-project in the region us-west1.
+## Quick start
 
-- Describe the Cloud Run job hello-job in the project test-gcp-project in the region europe-west1.
+If this repo is already on your machine:
+
+```bash
+# Install and trust the plugin
+grok plugin install /path/to/grok-mcp-cloudrun --trust
+grok plugin enable cloud-run
+
+# Confirm everything loaded
+grok plugin validate /path/to/grok-mcp-cloudrun
+grok inspect
+```
+
+Open Grok and check:
+
+- `/plugins` — `cloud-run` is enabled
+- `/mcps` — `cloud-run` server shows 8 tools
+- `/skills` — `cloud-run` skill is listed
+
+---
+
+## Installation
+
+Choose one path. Do **not** enable both with the same server name — pick plugin **or** bare MCP config.
+
+### Option A: Plugin (recommended)
+
+Includes skills, slash commands, and safety hooks.
+
+```bash
+grok plugin install /path/to/grok-mcp-cloudrun --trust
+grok plugin enable cloud-run
+```
+
+The `--trust` flag is required for MCP servers and hooks to activate.
+
+### Option B: MCP config only
+
+For personal use without the plugin wrapper:
+
+```bash
+grok mcp add cloud-run \
+  -e GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID \
+  -e GOOGLE_CLOUD_REGION=us-central1 \
+  -- npx -y @google-cloud/cloud-run-mcp@1.10.0
+```
+
+Or add manually to `~/.grok/config.toml`:
+
+```toml
+[mcp_servers.cloud-run]
+command = "npx"
+args = ["-y", "@google-cloud/cloud-run-mcp@1.10.0"]
+enabled = true
+startup_timeout_sec = 60
+
+[mcp_servers.cloud-run.env]
+GOOGLE_CLOUD_PROJECT = "${GOOGLE_CLOUD_PROJECT}"
+GOOGLE_CLOUD_REGION  = "${GOOGLE_CLOUD_REGION:-us-central1}"
+DEFAULT_SERVICE_NAME = "${DEFAULT_SERVICE_NAME:-}"
+
+[mcp_servers.cloud-run.tool_timeouts]
+deploy-local-folder = 600
+```
+
+---
+
+## Quick test (deploy + curl)
+
+End-to-end smoke test: clone a sample app, deploy it from Grok, then hit it with `curl`.
+
+### Step 1 — Clone the sample
+
+```bash
+git clone https://github.com/GoogleCloudPlatform/cloud-run-mcp.git /tmp/cloud-run-mcp
+cd /tmp/cloud-run-mcp/example-sources-to-deploy/nodejs
+```
+
+Upstream also provides `golang`, `java`, and `python` samples in the same directory.
+
+### Step 2 — Deploy from Grok
+
+In a Grok session (with this directory as your working folder):
+
+```
+/deploy hello-test
+```
+
+Grok calls `cloud-run__deploy-local-folder` and returns a public HTTPS URL when the deploy finishes. First deploy can take several minutes (Cloud Build + container push).
+
+### Step 3 — Verify with curl
+
+Use the URL from the deploy response, or look it up with `gcloud`:
+
+```bash
+# Option A: URL from /deploy output
+curl -sS https://hello-test-XXXXXXXX-uc.a.run.app/
+
+# Option B: resolve URL via gcloud
+SERVICE_URL=$(gcloud run services describe hello-test \
+  --region="${GOOGLE_CLOUD_REGION:-us-central1}" \
+  --project="${GOOGLE_CLOUD_PROJECT}" \
+  --format='value(status.url)')
+
+curl -sS "$SERVICE_URL/"
+```
+
+Expected response:
+
+```
+Hello from Node.js on Cloud Run!
+```
+
+Health check:
+
+```bash
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" "$SERVICE_URL/health"
+```
+
+Expected: `HTTP 200`
+
+### Step 4 — Check logs
+
+Back in Grok:
+
+```
+/logs hello-test
+```
+
+Or from the shell:
+
+```bash
+gcloud run services logs read hello-test \
+  --region="${GOOGLE_CLOUD_REGION:-us-central1}" \
+  --limit=20
+```
+
+### Step 5 — Clean up (optional)
+
+```bash
+gcloud run services delete hello-test \
+  --region="${GOOGLE_CLOUD_REGION:-us-central1}" \
+  --quiet
+```
+
+---
+
+## Daily usage
+
+### Slash commands
+
+| Command | Action |
+|---------|--------|
+| `/deploy` | Deploy cwd; service name = directory basename |
+| `/deploy my-api` | Deploy cwd as `my-api` |
+| `/logs` | Logs for default service name |
+| `/logs my-api` | Logs for `my-api` |
+
+### Natural language prompts
+
+- "List Cloud Run services in `my-project` region `us-central1`"
+- "Deploy the current folder to Cloud Run"
+- "Get the URL for service `hello-test`"
+- "Show me recent errors in Cloud Run logs for `my-api`"
+
+### MCP tools
+
+Grok namespaces tools as `cloud-run__<tool>`:
+
+| Tool | Purpose |
+|------|---------|
+| `cloud-run__deploy-local-folder` | Deploy cwd to Cloud Run |
+| `cloud-run__deploy-file-contents` | Deploy files by content (remote mode) |
+| `cloud-run__list-services` | List services in project/region |
+| `cloud-run__get-service` | Service details and public URL |
+| `cloud-run__get-service-log` | Recent logs and errors |
+| `cloud-run__list-projects` | List GCP projects |
+| `cloud-run__create-project` | Create project (blocked by default hook) |
+
+Discover tools at runtime with `search_tool`, then call with `use_tool`.
+
+---
+
+## Configuration reference
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GOOGLE_CLOUD_PROJECT` | — | GCP project for all operations |
+| `GOOGLE_CLOUD_REGION` | `us-central1` | Cloud Run region |
+| `DEFAULT_SERVICE_NAME` | cwd basename | Default name for `/deploy` and `/logs` |
+| `SKIP_IAM_CHECK` | `true` (upstream) | When `true`, new services may be publicly accessible |
+| `CONFIRM_CLOUD_RUN_CREATE_PROJECT` | unset | Set to `1` to allow `create-project` (hook blocks it otherwise) |
+
+### Safety hooks
+
+The plugin ships `hooks/hooks.json`:
+
+- **SessionStart** — warns if neither `GOOGLE_CLOUD_PROJECT` nor a `gcloud` default project is set
+- **PreToolUse** — blocks `cloud-run__create-project` unless `CONFIRM_CLOUD_RUN_CREATE_PROJECT=1`
+
+### Timeouts
+
+Cold `npx` downloads can exceed the default 30s startup timeout. This repo's config uses:
+
+- `startup_timeout_sec = 60`
+- `tool_timeouts.deploy-local-folder = 600` (10 min for first deploy)
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `grok mcp doctor cloud-run` fails | `gcloud auth application-default login` |
+| MCP starts but deploy fails with auth error | Re-run ADC login; confirm `GOOGLE_CLOUD_PROJECT` |
+| Cold start / connection timeout | Set `startup_timeout_sec = 60` in config |
+| Deploy hangs or times out | Set `tool_timeouts = { deploy-local-folder = 600 }` |
+| `Permission denied` on deploy | Check IAM roles in [Prerequisites](#4-iam-roles) |
+| Plugin MCP shows **blocked** | Reinstall with `grok plugin install ... --trust` |
+| Plugin installed but tools missing | `grok plugin enable cloud-run` |
+| `curl` returns 403 | Service may not be public; check IAM or set `SKIP_IAM_CHECK=false` and add `allUsers` invoker binding |
+| `curl` connection refused right after deploy | Wait 30–60s for the new revision to become ready, then retry |
+
+### Diagnostic commands
+
+```bash
+grok mcp doctor cloud-run          # MCP health
+grok plugin validate .             # plugin manifest
+grok inspect                       # skills, commands, hooks, MCP inventory
+grok plugin list                   # installed plugins
+gcloud auth application-default print-access-token  # confirm ADC
+```
+
+---
+
+## Project layout
+
+```
+grok-mcp-cloudrun/
+├── .mcp.json                  # MCP server config (Grok primary)
+├── .claude-plugin/plugin.json # Claude-ecosystem compat
+├── .grok-plugin/plugin.json   # Marketplace manifest
+├── plugin.json                # Plugin metadata
+├── commands/
+│   ├── deploy.md              # /deploy slash command
+│   └── logs.md                # /logs slash command
+├── hooks/hooks.json           # SessionStart + PreToolUse safety
+├── skills/cloud-run/SKILL.md  # MCP-first Cloud Run workflow
+├── LICENSE                    # Apache 2.0 (upstream)
+├── NOTICE                     # Upstream attribution
+└── README.md                  # This guide
+```
+
+---
+
+## Hosted MCP vs local plugin
+
+This plugin runs the MCP server **locally via stdio** (`npx @google-cloud/cloud-run-mcp`). That is what powers `/deploy`, which calls `cloud-run__deploy-local-folder` on your current working directory.
+
+If you deploy the upstream MCP server itself to Cloud Run, it behaves differently:
+
+| | Local plugin (this repo) | Hosted on Cloud Run |
+|--|--------------------------|---------------------|
+| Transport | stdio via `npx` | `POST /mcp` or `GET /sse` |
+| `/deploy` (local folder) | Works | **Not available** |
+| Deploy by file contents | Yes | Yes |
+| Browser at service URL | N/A | `Cannot GET /` (expected — no web UI) |
+
+To verify a hosted MCP deployment, send an MCP `initialize` request to `/mcp` (see [GROK-CHANGES.md](GROK-CHANGES.md#lessons-from-hosted-mcp-evaluation)).
+
+For Grok day-to-day use, install this plugin — do not point Grok at a public Cloud Run URL without IAM authentication.
+
+---
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+Upstream MCP server: [GoogleCloudPlatform/cloud-run-mcp](https://github.com/GoogleCloudPlatform/cloud-run-mcp) · npm: `@google-cloud/cloud-run-mcp@1.10.0`

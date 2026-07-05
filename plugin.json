@@ -1,0 +1,12 @@
+{
+  "name": "cloud-run",
+  "version": "0.1.0",
+  "description": "Deploy and manage Google Cloud Run services from Grok. Wraps @google-cloud/cloud-run-mcp (not affiliated with Google).",
+  "author": {
+    "name": "grok-mcp-cloudrun contributors"
+  },
+  "keywords": ["grok", "cloud-run", "google-cloud-run", "gcp", "google-cloud", "mcp"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/gprot42/grok-mcp-cloudrun",
+  "homepage": "https://github.com/gprot42/grok-mcp-cloudrun"
+}

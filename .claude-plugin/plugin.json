@@ -1,0 +1,16 @@
+{
+  "name": "cloud-run",
+  "version": "0.1.0",
+  "description": "Deploy and manage Google Cloud Run services from Grok. Wraps @google-cloud/cloud-run-mcp (not affiliated with Google).",
+  "mcpServers": {
+    "cloud-run": {
+      "command": "npx",
+      "args": ["-y", "@google-cloud/cloud-run-mcp@1.10.0"],
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "${GOOGLE_CLOUD_PROJECT}",
+        "GOOGLE_CLOUD_REGION": "${GOOGLE_CLOUD_REGION:-us-central1}",
+        "DEFAULT_SERVICE_NAME": "${DEFAULT_SERVICE_NAME:-}"
+      }
+    }
+  }
+}

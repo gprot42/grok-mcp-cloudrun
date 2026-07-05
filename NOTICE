@@ -1,0 +1,14 @@
+Cloud Run Grok Plugin
+Copyright 2026 grok-mcp-cloudrun contributors
+
+This plugin wraps the upstream Cloud Run MCP server:
+
+  @google-cloud/cloud-run-mcp
+  https://github.com/GoogleCloudPlatform/cloud-run-mcp
+  Copyright Google LLC
+  Licensed under the Apache License, Version 2.0
+
+The upstream skill (skills/cloud-run/SKILL.md) was adapted from the same
+repository and modified for Grok MCP workflows.
+
+This plugin is NOT affiliated with, endorsed by, or sponsored by Google.

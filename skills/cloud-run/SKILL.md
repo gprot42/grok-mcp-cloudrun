@@ -1,109 +1,97 @@
 ---
 name: cloud-run
-description: 'Manage Cloud Run services and jobs.'
+description: >
+  Deploy and manage Google Cloud Run services and jobs. Use when the user asks to
+  deploy to Cloud Run, get Cloud Run logs, list Cloud Run services, manage Cloud
+  Run jobs, or invokes /deploy or /logs. Requires gcloud CLI and the cloud-run MCP server.
 metadata:
-  version: 0.1.0
-  openclaw:
-    category: 'compute'
-    requires:
-      bins:
-        - gcloud
-    cliHelp: 'gcloud run --help'
+  version: 0.2.0
+  short-description: "Deploy and manage Cloud Run via MCP"
 ---
 
-# run (v1)
+# Cloud Run for Grok
 
-> **PREREQUISITE:** Ensure you have the `gcloud` CLI installed and authenticated with `gcloud auth login`. Set your project with `gcloud config set project [PROJECT_ID]`.
+> **PREREQUISITES:**
+> - `gcloud` CLI installed and authenticated: `gcloud auth login`
+> - Application Default Credentials: `gcloud auth application-default login`
+> - Project set: `export GOOGLE_CLOUD_PROJECT=your-project-id` (or `gcloud config set project`)
+> - Region (optional): `export GOOGLE_CLOUD_REGION=us-central1`
+> - Cloud Run MCP server enabled (`/mcps` shows `cloud-run`)
+
+## MCP-first workflow
+
+Prefer Cloud Run MCP tools (namespaced as `cloud-run__<tool>` in Grok):
+
+| Task | MCP tool | Slash command |
+|------|----------|---------------|
+| Deploy current folder | `cloud-run__deploy-local-folder` | `/deploy` |
+| List services | `cloud-run__list-services` | — |
+| Service details + URL | `cloud-run__get-service` | — |
+| Service logs | `cloud-run__get-service-log` | `/logs` |
+| List GCP projects | `cloud-run__list-projects` | — |
+
+**Default service name:** `DEFAULT_SERVICE_NAME` env var, or current directory basename.
+
+**Deploy steps:**
+
+1. Verify prerequisites (auth, project, deployable source in cwd)
+2. Call `cloud-run__deploy-local-folder` with cwd, service name, project, region
+3. Return the public HTTPS URL on success
+
+**Logs steps:**
+
+1. Resolve service name (arg → `DEFAULT_SERVICE_NAME` → cwd basename)
+2. Call `cloud-run__get-service-log`
+3. Highlight errors and recent log lines
+
+## Safety notes
+
+- `SKIP_IAM_CHECK` defaults to `true` upstream — new services may be publicly accessible. Set `SKIP_IAM_CHECK=false` to enforce IAM checks before making a service public.
+- `cloud-run__create-project` creates billable resources. The plugin blocks this unless `CONFIRM_CLOUD_RUN_CREATE_PROJECT=1` is set.
+
+## gcloud fallback
+
+When MCP is unavailable, use `gcloud run` directly:
 
 ```bash
 gcloud run <resource> <method> [flags]
 ```
 
-## Helper Commands
-
-| Command  | Description                                  |
-| -------- | -------------------------------------------- |
-| `deploy` | Create or update a Cloud Run service or job. |
-
-## API Resources
-
 ### services
 
-- `list` — List available services in the specified region.
-- `describe` — Obtain details about a given service, such as its URL and configuration.
-- `update` — Update Cloud Run environment variables, concurrency settings, and other configuration.
-- `delete` — Delete a service and its associated revisions.
-- `update-traffic` — Adjust the traffic assignments for a Cloud Run service.
-- `proxy` — Proxy a service to localhost authenticating as the active account.
-- `logs read` — Read logs for a Cloud Run service.
-- `replace` - Create or replace a service from a YAML service specification.
-- `add-iam-policy-binding` — Add IAM policy binding to a Cloud Run service (e.g., to make it public).
-- `remove-iam-policy-binding` - Remove IAM policy binding of a Cloud Run service.
-- `get-iam-policy` - Get the IAM policy for a Cloud Run service.
-- `set-iam-policy` - Set the IAM policy for a Cloud Run service.
+- `list` — List services in a region
+- `describe` — Service details and URL
+- `update` — Update env vars, concurrency, etc.
+- `delete` — Delete a service
+- `logs read` — Read service logs
+- `deploy` — Create or update a service (helper)
 
 ### jobs
 
-- `create` — Create a Cloud Run job.
-- `execute` — Start an execution of a Cloud Run job.
-- `list` — List available jobs.
-- `describe` — Obtain details about a given job.
-- `deploy` - Create or update a Cloud Run job
-- `update` — Update a Cloud Run job configuration.
-- `delete` — Delete a Cloud Run job.
-- `replace` - Create or replace a Cloud Run job from a YAML job specification.
-- `executions list` — List executions of a Cloud Run job.
-- `logs read` — Read logs for a Cloud Run job.
-- `add-iam-policy-binding` — Add IAM policy binding to a Cloud Run job.
-- `remove-iam-policy-binding` - Remove IAM policy binding of a Cloud Run job.
-- `get-iam-policy` - Get the IAM policy for a Cloud Run job.
-- `set-iam-policy` - Set the IAM policy for a Cloud Run job.
-
-### domain-mappings
-
-- `list` — List domain mappings.
-- `create` — Create a new domain mapping.
-- `describe` — Obtain details about a domain mapping.
-- `delete` — Delete a domain mapping.
-
-### multi-region-services
-
-- `list` — List multi-region services.
-- `describe` — Obtain details about a multi-region service.
-- `update` — Update settings for multi-region services.
-- `delete` — Delete a multi-region service.
-- `replace` - Create or Update multi-region service from YAML specification.
+- `list`, `describe`, `deploy`, `execute`, `delete`, `logs read`
 
 ### revisions
 
-- `list` — List available revisions for a service.
-- `describe` — Obtain details about a specific revision.
-- `delete` — Delete a specific revision.
+- `list`, `describe`, `delete`
 
 ### regions
 
-- `list` — View available Cloud Run (fully managed) regions.
+- `list` — Available Cloud Run regions
 
-### compose
+Discover flags with `gcloud run --help` and `gcloud run deploy --help`.
 
-- `up` — Deploy to Cloud Run from a compose specification.
+## IAM requirements
 
-## Discovering Commands
+Minimum roles for deploy/list/logs:
 
-Before calling any command, inspect it for help:
+- `roles/run.admin` (or `roles/run.developer` + `roles/iam.serviceAccountUser`)
+- Storage / Artifact Registry access for source uploads (often `roles/storage.admin`, `roles/artifactregistry.writer`)
 
-```bash
-# Browse resources and methods
-gcloud run --help
+## Common errors
 
-# Inspect a specific resource methods
-gcloud run services --help
-
-# Inspect a specific resource's sub-group methods
-gcloud run jobs executions --help
-
-# Inspect a method's specific flags and arguments
-gcloud run deploy --help
-```
-
-Use the output of `--help` to discover available flags like `--image`, `--env-vars`, `--memory`, etc.
+| Symptom | Fix |
+|---------|-----|
+| MCP connection timeout | Increase `startup_timeout_sec` to 60 in config; cold `npx` downloads are slow |
+| ADC not found | `gcloud auth application-default login` |
+| Permission denied | Check IAM roles above |
+| Wrong project | `export GOOGLE_CLOUD_PROJECT=...` or `gcloud config set project` |
