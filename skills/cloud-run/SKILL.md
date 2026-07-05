@@ -55,6 +55,8 @@ basename.
   service public.
 - `cloud-run__create-project` creates billable resources. The plugin blocks this
   unless `CONFIRM_CLOUD_RUN_CREATE_PROJECT=1` is set.
+- Deploy tools to production-like projects (`*prod*`, `*production*` in project
+  ID) are blocked unless `CONFIRM_CLOUD_RUN_PROD_DEPLOY=1` is set.
 
 ## gcloud fallback
 

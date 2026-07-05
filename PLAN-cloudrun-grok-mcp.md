@@ -380,14 +380,21 @@ management and OAuth edge cases.
 
 ---
 
-## 12. Next actions
+## 12. Implementation status
 
-1. Run Phase 0 smoke test with real GCP credentials
-2. If successful, add Phase 1 `config.toml` entry
-3. Scaffold Phase 2 plugin directory in a new repo
-4. Copy upstream skill; add Grok trigger phrases
-5. Write `commands/deploy.md` and `commands/logs.md`
-6. Optional: add SessionStart env-check hook
+| Phase               | Status      | Notes                                                                     |
+| ------------------- | ----------- | ------------------------------------------------------------------------- |
+| 0 — Smoke test      | Done        | `grok mcp doctor cloud-run` passes; deploy/logs validated                 |
+| 1 — User config     | Done        | `~/.grok/config.toml` configured                                          |
+| 2 — Plugin scaffold | Done        | https://github.com/gprot42/grok-mcp-cloudrun                              |
+| 3 — Hardening       | Done        | Hooks, timeouts in `.mcp.json`, `scripts/verify-setup.sh`, CI             |
+| 4 — Marketplace     | In progress | GitHub install ready; xAI catalog PR via [MARKETPLACE.md](MARKETPLACE.md) |
+
+## 13. Next actions
+
+1. Run `./scripts/verify-setup.sh` before each release
+2. Tag releases: `grok plugin tag --push`
+3. Submit marketplace PR to `xai-org/plugin-marketplace` (see MARKETPLACE.md)
 
 ---
 

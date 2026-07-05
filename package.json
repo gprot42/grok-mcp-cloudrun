@@ -1,6 +1,6 @@
 {
   "name": "grok-mcp-cloudrun",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Grok plugin for Google Cloud Run — wraps @google-cloud/cloud-run-mcp",
   "scripts": {

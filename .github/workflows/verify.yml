@@ -1,0 +1,29 @@
+name: Verify Plugin
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run lint:check
+      - name: Validate plugin.json structure
+        run: |
+          node -e "
+            const fs = require('fs');
+            const plugin = JSON.parse(fs.readFileSync('plugin.json','utf8'));
+            const mcp = JSON.parse(fs.readFileSync('.mcp.json','utf8'));
+            const hooks = JSON.parse(fs.readFileSync('hooks/hooks.json','utf8'));
+            if (!plugin.name || !plugin.version) throw new Error('plugin.json missing name/version');
+            if (!mcp.mcpServers['cloud-run']) throw new Error('.mcp.json missing cloud-run server');
+            if (!hooks.hooks.PreToolUse) throw new Error('hooks missing PreToolUse');
+            console.log('Plugin structure OK');
+          "

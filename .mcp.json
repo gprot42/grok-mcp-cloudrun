@@ -3,6 +3,10 @@
     "cloud-run": {
       "command": "npx",
       "args": ["-y", "@google-cloud/cloud-run-mcp@1.10.0"],
+      "startup_timeout_sec": 60,
+      "tool_timeouts": {
+        "deploy-local-folder": 600
+      },
       "env": {
         "GOOGLE_CLOUD_PROJECT": "${GOOGLE_CLOUD_PROJECT}",
         "GOOGLE_CLOUD_REGION": "${GOOGLE_CLOUD_REGION:-us-central1}",

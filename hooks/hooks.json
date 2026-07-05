@@ -6,6 +6,10 @@
           {
             "type": "command",
             "command": "PROJECT=$(gcloud config get-value project 2>/dev/null); if [ -z \"$GOOGLE_CLOUD_PROJECT\" ] && [ -z \"$PROJECT\" ]; then echo 'WARN: GOOGLE_CLOUD_PROJECT not set and no gcloud default project — Cloud Run MCP may fail. Run: export GOOGLE_CLOUD_PROJECT=your-project-id'; fi"
+          },
+          {
+            "type": "command",
+            "command": "gcloud auth application-default print-access-token >/dev/null 2>&1 || echo 'WARN: Application Default Credentials not configured. Run: gcloud auth application-default login'"
           }
         ]
       }
@@ -17,6 +21,33 @@
           {
             "type": "command",
             "command": "echo 'BLOCKED: create-project creates billable GCP resources. Set CONFIRM_CLOUD_RUN_CREATE_PROJECT=1 to allow.' && test -n \"$CONFIRM_CLOUD_RUN_CREATE_PROJECT\""
+          }
+        ]
+      },
+      {
+        "matcher": "cloud-run__deploy-local-folder",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PROJECT=\"${GOOGLE_CLOUD_PROJECT:-$(gcloud config get-value project 2>/dev/null)}\"; case \"$PROJECT\" in *prod*|*PROD*|*production*|*PRODUCTION*) test -n \"$CONFIRM_CLOUD_RUN_PROD_DEPLOY\" || { echo 'BLOCKED: deploy to production-like project '\"$PROJECT\"'. Set CONFIRM_CLOUD_RUN_PROD_DEPLOY=1 to allow.'; exit 1; } ;; esac; echo 'Cloud Run deploy starting for project '\"$PROJECT\"'. Set CONFIRM_CLOUD_RUN_PROD_DEPLOY=1 if this is a production project.'"
+          }
+        ]
+      },
+      {
+        "matcher": "cloud-run__deploy-file-contents",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PROJECT=\"${GOOGLE_CLOUD_PROJECT:-$(gcloud config get-value project 2>/dev/null)}\"; case \"$PROJECT\" in *prod*|*PROD*|*production*|*PRODUCTION*) test -n \"$CONFIRM_CLOUD_RUN_PROD_DEPLOY\" || { echo 'BLOCKED: deploy to production-like project '\"$PROJECT\"'. Set CONFIRM_CLOUD_RUN_PROD_DEPLOY=1 to allow.'; exit 1; } ;; esac"
+          }
+        ]
+      },
+      {
+        "matcher": "cloud-run__deploy-container-image",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PROJECT=\"${GOOGLE_CLOUD_PROJECT:-$(gcloud config get-value project 2>/dev/null)}\"; case \"$PROJECT\" in *prod*|*PROD*|*production*|*PRODUCTION*) test -n \"$CONFIRM_CLOUD_RUN_PROD_DEPLOY\" || { echo 'BLOCKED: deploy to production-like project '\"$PROJECT\"'. Set CONFIRM_CLOUD_RUN_PROD_DEPLOY=1 to allow.'; exit 1; } ;; esac"
           }
         ]
       }

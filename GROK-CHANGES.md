@@ -71,6 +71,11 @@ default project is configured.
 `CONFIRM_CLOUD_RUN_CREATE_PROJECT=1` is set, because it creates billable GCP
 resources.
 
+**PreToolUse** — blocks deploy tools when `GOOGLE_CLOUD_PROJECT` matches
+production-like patterns unless `CONFIRM_CLOUD_RUN_PROD_DEPLOY=1` is set.
+
+**SessionStart** — also warns when Application Default Credentials are missing.
+
 ### 5. Pinned upstream version
 
 `.mcp.json` pins `@google-cloud/cloud-run-mcp@1.10.0` to avoid surprise breakage

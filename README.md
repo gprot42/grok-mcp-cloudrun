@@ -286,15 +286,18 @@ Discover tools at runtime with `search_tool`, then call with `use_tool`.
 | `DEFAULT_SERVICE_NAME`             | cwd basename      | Default name for `/deploy` and `/logs`                          |
 | `SKIP_IAM_CHECK`                   | `true` (upstream) | When `true`, new services may be publicly accessible            |
 | `CONFIRM_CLOUD_RUN_CREATE_PROJECT` | unset             | Set to `1` to allow `create-project` (hook blocks it otherwise) |
+| `CONFIRM_CLOUD_RUN_PROD_DEPLOY`    | unset             | Set to `1` to deploy when project ID looks like production      |
 
 ### Safety hooks
 
 The plugin ships `hooks/hooks.json`:
 
 - **SessionStart** — warns if neither `GOOGLE_CLOUD_PROJECT` nor a `gcloud`
-  default project is set
+  default project is set; warns if ADC is missing
 - **PreToolUse** — blocks `cloud-run__create-project` unless
   `CONFIRM_CLOUD_RUN_CREATE_PROJECT=1`
+- **PreToolUse** — blocks deploy tools to production-like projects unless
+  `CONFIRM_CLOUD_RUN_PROD_DEPLOY=1`
 
 ### Timeouts
 
@@ -323,12 +326,24 @@ config uses:
 ### Diagnostic commands
 
 ```bash
+./scripts/verify-setup.sh          # full Phase 3 checklist
 grok mcp doctor cloud-run          # MCP health
 grok plugin validate .             # plugin manifest
 grok inspect                       # skills, commands, hooks, MCP inventory
 grok plugin list                   # installed plugins
 gcloud auth application-default print-access-token  # confirm ADC
 ```
+
+## Marketplace
+
+Install from GitHub:
+
+```bash
+grok plugin install gprot42/grok-mcp-cloudrun --trust
+grok plugin enable cloud-run
+```
+
+To submit to the official xAI marketplace, see [MARKETPLACE.md](MARKETPLACE.md).
 
 ---
 
